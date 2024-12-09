@@ -1,0 +1,35 @@
+{
+  "name": "locate-intersections",
+  "description": "Find intersecting segment locations within a set of lines",
+  "license": "MIT",
+  "version": "0.0.0",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/locate-intersections.umd.cjs",
+  "module": "./dist/locate-intersections.js",
+  "exports": {
+    ".": {
+      "import": "./dist/locate-intersections.js",
+      "require": "./dist/locate-intersections.umd.cjs"
+    }
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "test": "vitest",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "ts-standard": "^12.0.2",
+    "typescript": "~5.6.2",
+    "vite": "^6.0.1",
+    "vite-plugin-dts": "^4.3.0",
+    "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "tinyqueue": "^3.0.0"
+  }
+}
