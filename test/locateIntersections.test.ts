@@ -21,6 +21,7 @@ const parseExcalidrawLines = (j: ExcalidrawFile): Line[] => {
 
 test('test1', () => {
   const lines = parseExcalidrawLines(json)
-  const points = locateIntersections(lines)
-  expect(points).toEqual([[50, 0], [80, -60]])
+  const intersections = locateIntersections(lines)
+  console.log(intersections)
+  expect(intersections.map((i) => i.point)).toEqual([[50, 0], [80, -60]])
 })
