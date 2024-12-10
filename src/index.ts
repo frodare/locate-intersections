@@ -18,15 +18,10 @@ interface SweepEvent {
   isStart: boolean
 }
 
-interface VertexLocation {
-  lineIndex: number
-  vertexIndex: number
-}
-
 interface Intersection {
   point: Point
-  line1: VertexLocation
-  line2: VertexLocation
+  segment1: ActiveSegment
+  segment2: ActiveSegment
 }
 
 const sweepPriority = ([x1, y1]: Point, [x2, y2]: Point): 1 | 0 | -1 => {
@@ -42,45 +37,56 @@ const eventPriority = (e1: SweepEvent, e2: SweepEvent): 1 | 0 | -1 =>
 const segmentEndPriority = (a: ActiveSegment, b: ActiveSegment): 1 | 0 | -1 =>
   sweepPriority(a.segment[1], b.segment[1])
 
+const fillSegmentEvents = (queue: TinyQueue<SweepEvent>, vertex, nextVertex, lineIndex, vertexIndex): void => {
+  const event1: SweepEvent = {
+    vertex,
+    lineIndex,
+    vertexIndex,
+    isStart: sweepPriority(vertex, nextVertex) <= 0
+  }
+  const event2: SweepEvent = {
+    vertex: nextVertex,
+    lineIndex,
+    vertexIndex,
+    isStart: !event1.isStart,
+    otherEvent: event1
+  }
+  event1.otherEvent = event2
+  queue.push(event1)
+  queue.push(event2)
+}
+
+const fillSegmentEvents2 = (queue: TinyQueue<SweepEvent>, lineIndex: number) => (nextVertex: Point, vertexIndex: number, line: Line): void => {
+  if (vertexIndex === 0) return
+  const vertex = line[vertexIndex - 1]
+  const event1: SweepEvent = {
+    vertex,
+    lineIndex,
+    vertexIndex,
+    isStart: sweepPriority(vertex, nextVertex) <= 0
+  }
+  const event2: SweepEvent = {
+    vertex: nextVertex,
+    lineIndex,
+    vertexIndex,
+    isStart: !event1.isStart,
+    otherEvent: event1
+  }
+  event1.otherEvent = event2
+  queue.push(event1)
+  queue.push(event2)
+}
+
 const fill = (queue: TinyQueue<SweepEvent>, lines: Line[]): void => {
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-    let vertex = lines[lineIndex][0]
-    let nextVertex: Point | undefined
-    for (let vertexIndex = 0; vertexIndex < lines[lineIndex].length - 1; vertexIndex++) {
-      nextVertex = lines[lineIndex][vertexIndex + 1]
-
-      const e1: SweepEvent = {
-        vertex,
-        lineIndex,
-        vertexIndex,
-        isStart: true
-      }
-      const e2: SweepEvent = {
-        vertex: nextVertex,
-        lineIndex,
-        vertexIndex,
-        isStart: false,
-        otherEvent: e1
-      }
-
-      e1.otherEvent = e2
-
-      if (eventPriority(e1, e2) > 0) {
-        e2.isStart = true
-        e1.isStart = false
-      } else {
-        e1.isStart = true
-        e2.isStart = false
-      }
-      queue.push(e1)
-      queue.push(e2)
-
-      vertex = nextVertex
-    }
+    lines[lineIndex].forEach(fillSegmentEvents2(queue, lineIndex))
   }
 }
 
-const findIntersection = ([[x1, y1], [x2, y2]]: Segment, [[x3, y3], [x4, y4]]: Segment): Point | undefined => {
+const calculateIntersection = (
+  [[x1, y1], [x2, y2]]: Segment,
+  [[x3, y3], [x4, y4]]: Segment
+): Point | undefined => {
   const denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1)
   if (denom === 0) return undefined
   const ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom
@@ -95,46 +101,39 @@ const isAdjoiningSegments = (a: ActiveSegment, b: ActiveSegment): boolean => {
   return Math.abs(a.vertexIndex - b.vertexIndex) <= 1
 }
 
-const handleSweepEvent = (event: SweepEvent, segmentList: TinyQueue<ActiveSegment>, intersections: Intersection[]): void => {
-  if (event.otherEvent === undefined) return undefined
-  console.log('eventQueue', event.lineIndex, event.vertexIndex, event.isStart ? 'str' : 'end', event.vertex, '->', event.otherEvent.vertex)
+const handleSweepEvent = (
+  event: SweepEvent | undefined,
+  segmentList: TinyQueue<ActiveSegment>,
+  intersections: Intersection[]
+): void => {
+  if (event?.otherEvent === undefined) return
 
   if (!event.isStart) {
     segmentList.pop()
-    return undefined
+    return
   }
 
-  const segment: ActiveSegment = {
+  const segment1: ActiveSegment = {
     lineIndex: event.lineIndex,
     vertexIndex: event.vertexIndex,
     segment: [event.vertex, event.otherEvent.vertex]
   }
 
-  for (let i = 0; i < segmentList.data.length; i++) {
-    const otherSegment = segmentList.data[i]
-    if (isAdjoiningSegments(segment, otherSegment)) continue
-    const intersectionPoint = findIntersection(segment.segment, otherSegment.segment)
-    if (intersectionPoint !== undefined) {
-      const intersection: Intersection = {
-        point: intersectionPoint,
-        line1: { lineIndex: segment.lineIndex, vertexIndex: segment.vertexIndex },
-        line2: { lineIndex: otherSegment.lineIndex, vertexIndex: otherSegment.vertexIndex }
-      }
-      intersections.push(intersection)
-    }
-  }
+  segmentList.data.forEach((segment2: ActiveSegment): void => {
+    if (isAdjoiningSegments(segment1, segment2)) return
+    const point = calculateIntersection(segment1.segment, segment2.segment)
+    if (point === undefined) return
+    intersections.push({ point, segment1, segment2 })
+  })
 
-  segmentList.push(segment)
+  segmentList.push(segment1)
 }
 
 const sweep = (eventQueue: TinyQueue<SweepEvent>): Intersection[] => {
   const intersections: Intersection[] = []
   const segmentList = new TinyQueue([], segmentEndPriority)
-
   while (eventQueue.length > 0) {
-    const event = eventQueue.pop()
-    if (event === undefined) break
-    handleSweepEvent(event, segmentList, intersections)
+    handleSweepEvent(eventQueue.pop(), segmentList, intersections)
   }
   return intersections
 }
